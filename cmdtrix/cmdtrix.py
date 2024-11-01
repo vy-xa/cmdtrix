@@ -25,6 +25,7 @@ NUMBER_OF_MATRIXCOLUMNS = cols
 MAX_SPEED_TICKS = 5
 COLOR = "green"
 COLOR_PEAK = "white"
+RAINBOW_MODE = False
 
 HIDDEN_MESSAGE = []
 
@@ -37,6 +38,14 @@ keyDetected = 0
 
 coloramaInit()
 
+rainbow_colors = list(colorCodes.keys())
+rainbow_index = 0
+
+def next_rainbow_color():
+    global rainbow_index
+    color = rainbow_colors[rainbow_index % len(rainbow_colors)]
+    rainbow_index += 1
+    return color
 
 class MatrixColumn:
     def __init__(self, col):
@@ -78,15 +87,18 @@ class MatrixColumn:
 
         if self.currentTick == self.speedTicks:
             if self.yPositionSet <= self.maxYPosition:
+                color = next_rainbow_color() if RAINBOW_MODE else COLOR
+                color_peak = next_rainbow_color() if RAINBOW_MODE else COLOR_PEAK
+
                 if self.message_event and self.message_begin <= self.yPositionSet < self.message_begin + self.message_length:
                     self.lastChar = self.message_chars.pop(0)
-                    printAtPosition(self.lastChar, self.col, self.yPositionSet-1, self.message_color,  ("2;" * (random() < CHANCE_FOR_DIM)) + ("3;" * (random() < CHANCE_FOR_ITALIC)))
+                    printAtPosition(self.lastChar, self.col, self.yPositionSet-1, color, ("2;" * (random() < CHANCE_FOR_DIM)) + ("3;" * (random() < CHANCE_FOR_ITALIC)))
                 else:
-                    printAtPosition(self.lastChar, self.col, self.yPositionSet-1, COLOR,  ("2;" * (random() < CHANCE_FOR_DIM)) + ("3;" * (random() < CHANCE_FOR_ITALIC)))
+                    printAtPosition(self.lastChar, self.col, self.yPositionSet-1, color, ("2;" * (random() < CHANCE_FOR_DIM)) + ("3;" * (random() < CHANCE_FOR_ITALIC)))
                 self.lastChar = self.chars.pop()
-                printAtPosition(self.lastChar , self.col, self.yPositionSet, COLOR_PEAK)
+                printAtPosition(self.lastChar , self.col, self.yPositionSet, color_peak)
             elif self.yPositionSet - 1 == self.maxYPosition >= rows:
-                printAtPosition(self.lastChar, self.col, self.yPositionSet-1, COLOR)
+                printAtPosition(self.lastChar, self.col, self.yPositionSet-1, color)
             if self.yPositionSet > self.lineLength:
                 printAtPosition(" ", self.col, self.yPositionErased, "black")
                 self.yPositionErased += 1
@@ -95,7 +107,8 @@ class MatrixColumn:
             self.yPositionSet += 1
         elif self.yPositionSet <= self.maxYPosition:
             self.lastChar = self.chars.pop()
-            printAtPosition(self.lastChar, self.col, self.yPositionSet-1, COLOR_PEAK)
+            color_peak = next_rainbow_color() if RAINBOW_MODE else COLOR_PEAK
+            printAtPosition(self.lastChar, self.col, self.yPositionSet-1, color_peak)
 
 
 @lru_cache(maxsize=min(cols*rows, 5000))
@@ -108,7 +121,6 @@ def printCode(*code: str) -> None:
 
 
 def printAtPosition(text: str, x: int, y: int, color: str, style: str = "") -> None:
-    # reset attributes, set position, set attributes and set color, concatenate with char
     print(getCode("m", "%d;%df" % (y, x), style + colorCodes[color] + "m"), text, sep="", end="", flush=True)
 
 
@@ -131,10 +143,6 @@ def on_press(key):
 
 
 def updateMatrixColumns(matrixColumns: set) -> None:
-    """
-    add a new MatrixColumn every Tick, if the MAX has not been
-    reached yet
-    """
     global keyDetected
     for matrixColumn in matrixColumns:
         matrixColumn.update()
@@ -184,11 +192,13 @@ def main():
         FRAME_DELAY = argsHandler.frameDelay
         global ON_KEY_DETECTION
         ON_KEY_DETECTION = argsHandler.onkey
+        global RAINBOW_MODE
+        RAINBOW_MODE = argsHandler.rainbow 
         exitOnArg = False
         
         eventTimer.append(init())
         timer = argsHandler.timer
-        if timer != None:
+        if timer is not None:
             eventTimer.append(EventTimer(timer, interrupt_main, 'Timer'))
         if ON_KEY_DETECTION:
             eventTimer.append(EventTimer(None, None, 'keyboardListener', on_press=on_press))
@@ -199,7 +209,6 @@ def main():
         while True:
             updateMatrixColumns(matrixColumns)
             delay_frame(FRAME_DELAY)
-            # stdout.flush()
     except KeyboardInterrupt:
         pass
     except Exception:
